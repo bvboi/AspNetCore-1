@@ -261,6 +261,7 @@ export class HttpConnection implements IConnection {
         this.stopError = error;
 
         if (this.reconnectDelayHandle) {
+            this.logger.log(LogLevel.Debug, "Connection stopped during reconnect delay. Done reconnecting.");
             clearTimeout(this.reconnectDelayHandle);
             this.reconnectDelayHandle = undefined;
 
@@ -286,7 +287,8 @@ export class HttpConnection implements IConnection {
             try {
                 await this.transport.stop();
             } catch (e) {
-                this.stopConnection(e);
+                this.logger.log(LogLevel.Error, `HttpConnection.transport.stop() threw error '${e}'.`);
+                this.stopConnection();
             }
 
             this.transport = undefined;

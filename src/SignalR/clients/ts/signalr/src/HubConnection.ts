@@ -565,12 +565,12 @@ export class HubConnection {
         const doHandshake = async () => {
             try {
                 await this.doHandshake();
-                this.connectionState = HubConnectionState.Connected;
             } catch (e) {
                 this.connection.continueReconnecting(e);
                 return;
             }
 
+            this.connectionState = HubConnectionState.Connected;
             this.reconnectedCallbacks.forEach((c) => c.apply(this, [connectionId]));
         };
 

@@ -11,7 +11,7 @@ export interface IConnection {
     send(data: string | ArrayBuffer): Promise<void>;
     stop(error?: Error): Promise<void>;
     connectionLost(error: Error): void;
-    continueReconnecting(error: Error): void;
+    resumeReconnecting(error: Error): void;
 
     onreceive: ((data: string | ArrayBuffer) => void) | null;
     onclose: ((error?: Error) => void) | null;

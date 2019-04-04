@@ -39,6 +39,7 @@ export class HubConnection {
     private handshakePromise!: Promise<{}>;
     private handshakeResolver!: (value?: PromiseLike<{}>) => void;
     private handshakeRejecter!: (reason?: any) => void;
+    private isResumingReconnects: boolean;
     private connectionState: HubConnectionState;
 
     // The type of these a) doesn't matter and b) varies when building in browser and node contexts
@@ -95,6 +96,7 @@ export class HubConnection {
         this.reconnectedCallbacks = [];
         this.invocationId = 0;
         this.receivedHandshakeResponse = false;
+        this.isResumingReconnects = false;
         this.connectionState = HubConnectionState.Disconnected;
 
         this.cachedPingMessage = this.protocol.writeMessage({ type: MessageType.Ping });
@@ -518,6 +520,8 @@ export class HubConnection {
     private connectionClosed(error?: Error) {
         this.connectionState = HubConnectionState.Disconnected;
 
+        this.isResumingReconnects = false;
+
         // If the handshake is in progress, start will be waiting for the handshake promise, so we complete it.
         // If it has already completed, this should just noop.
         if (this.handshakeRejecter) {
@@ -533,13 +537,17 @@ export class HubConnection {
     }
 
     private connectionReconnecting(error?: Error) {
-        if (this.connectionState === HubConnectionState.Disconnected) {
-            // The handshake never completed. Just stop the connection which should reject the handshake promise and therefore also start().
+        if (this.connectionState === HubConnectionState.Disconnected ||
+                (this.connectionState === HubConnectionState.Reconnecting && !this.isResumingReconnects)) {
+
+            // The handshake never completed. Just stop the connection which rejects the handshake promise and therefore also start() or the reconnect attempts.
             this.logger.log(LogLevel.Information, "The underlying connection started reconnecting before the hub handshake completed. Stopping.");
             // tslint:disable-next-line:no-floating-promises
             this.stop();
             return;
         }
+
+        this.isResumingReconnects = false;
 
         this.cancelCallbacksWithError(error ? error : new Error("Invocation canceled due to connection reconnecting."));
 
@@ -559,18 +567,25 @@ export class HubConnection {
 
     private connectionReconnected(connectionId?: string) {
         if (this.connectionState !== HubConnectionState.Reconnecting) {
+            this.logger.log(LogLevel.Debug, "The underlying connection reconnected but the the HubConnection is not in the reconnecting state.");
             return;
         }
 
         const doHandshake = async () => {
             try {
                 await this.doHandshake();
+                this.connectionState = HubConnectionState.Connected;
             } catch (e) {
-                this.connection.continueReconnecting(e);
+                if (this.connectionState === HubConnectionState.Reconnecting) {
+                    this.isResumingReconnects = true;
+                    this.connection.resumeReconnecting(e);
+                } else {
+                    this.logger.log(LogLevel.Debug, "The hub handshake failed and the HubConnection is no longer reconnecting: " + e);
+                }
+
                 return;
             }
 
-            this.connectionState = HubConnectionState.Connected;
             this.reconnectedCallbacks.forEach((c) => c.apply(this, [connectionId]));
         };
 

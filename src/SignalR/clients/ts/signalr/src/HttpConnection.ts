@@ -160,7 +160,7 @@ export class HttpConnection implements IConnection {
         this.stopOrReconnect(true, error);
     }
 
-    public continueReconnecting(error?: Error) {
+    public resumeReconnecting(error?: Error) {
         this.startOrReconnectPromise = this.reconnectInternal(error);
     }
 
@@ -241,7 +241,7 @@ export class HttpConnection implements IConnection {
                 this.connectionState = ConnectionState.Connected;
             } else {
                 // stopOrAllowReconnect() is waiting on us via either this.startPromise or this.reconnectPromise so keep this.transport around.
-                return Promise.reject(new Error("Failed to start the connection. The HubConnection.stop() was called."));
+                return Promise.reject(new Error("Failed to start the connection. stop() was called."));
             }
         } catch (e) {
             // Only change state if currently connecting. Don't stop reconnect attempts here.
